@@ -1,5 +1,8 @@
 # Singleton Using __new__ Method:
-# The Singleton pattern is a design pattern that ensures a class has only one instance and provides a global point of access to that instance. It is commonly used when exactly one object is needed to coordinate actions across a system, such as a configuration manager, logging service, or database connection pool.
+
+
+# The Singleton pattern is a design pattern that ensures a class has only one instance and provides a global point of access to that instance.
+# It is commonly used when exactly one object is needed to coordinate actions across a system, such as a configuration manager, logging service, or database connection pool.
 
 # Key Characteristics of the Singleton Pattern:
 # 1. Single Instance: Only one instance of the class is created throughout the program's lifecycle.
@@ -21,25 +24,26 @@
 # When you want to control access to a shared resource.
 
 
-# class Singleton:
-#     _instance = None  # Class variable to store the single instance
+class Singleton:
+    _instance = None
+    _initialized = False  # Class-level flag (more explicit than instance-level)
 
-#     def __new__(cls, *args, **kwargs):
-#         if cls._instance is None:
-#             cls._instance = super().__new__(cls)
-#         return cls._instance
+    def __new__(cls, *args, **kwargs):
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+        return cls._instance
 
-#     def __init__(self, value):
-#         if not hasattr(self, "_initialized"):  # Check if already initialized
-#             self.value = value
-#             self._initialized = True  # Mark as initialized
+    def __init__(self, value):
+        if not Singleton._initialized:
+            self.value = value
+            Singleton._initialized = True
 
 
-# # Usage
-# obj1 = Singleton(10)
-# obj2 = Singleton(20)
+# Usage
+obj1 = Singleton(10)
+obj2 = Singleton(20)
 
-# print(obj1.value)  # Output: 10
-# print(obj2.value)  # Output: 10 (same instance as obj1)
-# print(obj1 is obj2)  # Output: True
+print(obj1.value)  # Output: 10
+print(obj2.value)  # Output: 10 (same instance as obj1)
+print(obj1 is obj2)  # Output: True
 # ---------------------------------------------------------------------
