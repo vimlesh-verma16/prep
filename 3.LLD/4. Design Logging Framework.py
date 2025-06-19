@@ -2,6 +2,8 @@ from enum import Enum, auto
 from abc import ABC, abstractmethod
 from datetime import datetime
 import sqlite3
+import threading
+import time
 
 
 class LogLevel(Enum):
@@ -40,35 +42,6 @@ class FileAppender(LogAppender):
     def append(self, message: LogMessage):
         with open(self.file_path, "a") as f:
             f.write(message.format() + "\n")
-
-
-class DatabaseAppender(LogAppender):
-    def __init__(self, db_path="log.db"):
-        self.conn = sqlite3.connect(db_path)
-        self._create_table()
-
-    def _create_table(self):
-        with self.conn:
-            self.conn.execute(
-                """
-                CREATE TABLE IF NOT EXISTS logs (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    timestamp TEXT,
-                    level TEXT,
-                    message TEXT
-                )
-            """
-            )
-
-    def append(self, message: LogMessage):
-        with self.conn:
-            self.conn.execute(
-                "INSERT INTO logs (timestamp, level, message) VALUES (?, ?, ?)",
-                (message.timestamp, message.level.name, message.message),
-            )
-
-
-import threading
 
 
 class LoggerConfig:
@@ -119,10 +92,6 @@ class Logger:
         self.log(LogLevel.FATAL, msg)
 
 
-import threading
-import time
-
-
 class LoggingExample:
     def run(self):
         logger = Logger()
@@ -135,7 +104,7 @@ class LoggingExample:
         logger.debug("Now debug will appear in file")
 
         # Switch to DB appender
-        logger.set_config(LoggerConfig(LogLevel.WARNING, DatabaseAppender()))
+        logger.set_config(LoggerConfig(LogLevel.WARNING, ConsoleAppender()))
         logger.warning("Warning stored in DB")
         logger.error("Error stored in DB")
 
