@@ -1,104 +1,135 @@
-# Flow: show_menu ->   select coffee -> check_for_inventory -> available -> insert_amount -> dispense_coffer ->dispense_change -> show_menu
-
-from enum import Enum
-from abc import ABC, abstractmethod
-
-
-class CoffeeType(Enum):
-    BLACK_COFFEE = "black_coffee"
-    LATTE = "latte"
-    AMERICANO = "americano"
-    ESPRESSO = "espresso"
+# coffee_vending_machine.py
+import threading
+from typing import Dict
+from concurrent.futures import ThreadPoolExecutor
 
 
-class CoffeeMaker(ABC):
-    @abstractmethod
-    def make_coffee(self):
-        pass
+class Ingredient:
+    def __init__(self, name: str, quantity: int):
+        self.name = name
+        self.quantity = quantity
+        self.lock = threading.Lock()
 
+    def update_quantity(self, amount: int):
+        with self.lock:
+            self.quantity += amount
 
-class BlackCoffeeMaker(CoffeeMaker):
-    def make_coffee(self):
-        print("make coffe")
-
-
-class LatteMaker(CoffeeMaker):
-    def make_coffee(self):
-        print("make coffe")
-
-
-class AmericanoMaker(CoffeeMaker):
-    def make_coffee(self):
-        print("make coffe")
-
-
-class EspressoMaker(CoffeeMaker):
-    def make_coffee(self):
-        print("make coffe")
-
-
-class SelectCoffeMaker:
-
-    def make_coffe(self, strategy):
-        strategy.make_coffee()
-
-
-class FUND:
-    def __init__(self):
-        self.denomination = {10: 10, 20: 2, 50: 1}
-
-    def check_funds(self, coffe):
-        return True
+    def consume(self, amount: int) -> bool:
+        with self.lock:
+            if self.quantity >= amount:
+                self.quantity -= amount
+                return True
+            return False
 
 
 class Coffee:
-    def __init__(self, coffee_type, price):
+    def __init__(self, name: str, price: float, recipe: Dict[str, int]):
+        self.name = name
         self.price = price
-        self.coffee_type = coffee_type
+        self.recipe = recipe
 
 
-class Machine:
+class Payment:
+    def __init__(self, amount: float):
+        self.amount = amount
+
+
+class CoffeeMachine:
+    _instance = None
+    _lock = threading.Lock()
+
+    def __new__(cls):
+        if cls._instance is None:
+            with cls._lock:
+                if cls._instance is None:
+                    cls._instance = super(CoffeeMachine, cls).__new__(cls)
+        return cls._instance
+
     def __init__(self):
-        self.inventory = {
-            "black_coffee": 5,
-            "latte": 10,
-            "americano": 15,
-            "espresso": 10,
+        if hasattr(self, "_initialized") and self._initialized:
+            return
+
+        self.ingredients: Dict[str, Ingredient] = {
+            "water": Ingredient("water", 5000),
+            "milk": Ingredient("milk", 3000),
+            "coffee_beans": Ingredient("coffee_beans", 1000),
         }
-        self.price = {"black_coffee": 5, "latte": 10, "americano": 15, "espresso": 10}
-        self.funds = FUND()
-        self.c_make = SelectCoffeMaker()
 
-    def show_menu(self):
-        for co in CoffeeType:
-            print(co.name, co.value)
+        self.menu: Dict[str, Coffee] = {
+            "espresso": Coffee("espresso", 2.5, {"water": 50, "coffee_beans": 18}),
+            "cappuccino": Coffee(
+                "cappuccino", 3.0, {"water": 50, "milk": 60, "coffee_beans": 18}
+            ),
+            "latte": Coffee(
+                "latte", 3.5, {"water": 30, "milk": 120, "coffee_beans": 18}
+            ),
+        }
 
-    def select_coffee(self, selection, coffe_maker_obj):
-        coffe = Coffee(selection, self.price[selection])
-        if selection in self.inventory and self.funds.check_funds(coffe):
-            self.c_make.make_coffe(coffe_maker_obj)
-            self.dispense()
+        self._initialized = True
 
-    @staticmethod
-    def dispense():
-        print("Please collect coffee and change")
+    def display_menu(self):
+        print("Available Coffee Options:")
+        for name, coffee in self.menu.items():
+            print(f"{name.title()}: ${coffee.price}")
 
-    def latte(self):
-        self.select_coffee(CoffeeType.LATTE.value, LatteMaker())
+    def has_enough_ingredients(self, coffee: Coffee) -> bool:
+        return all(
+            self.ingredients[ing].quantity >= amt for ing, amt in coffee.recipe.items()
+        )
 
-    def espresso(self):
-        self.select_coffee(CoffeeType.ESPRESSO.value, EspressoMaker())
+    def update_ingredients(self, coffee: Coffee):
+        for ing, amt in coffee.recipe.items():
+            if not self.ingredients[ing].consume(amt):
+                raise ValueError(f"Not enough {ing}")
+
+    def make_coffee(self, coffee_name: str, payment: Payment):
+        if coffee_name not in self.menu:
+            print("Invalid coffee selection.")
+            return
+
+        coffee = self.menu[coffee_name]
+
+        if payment.amount < coffee.price:
+            print("Insufficient payment.")
+            return
+
+        if not self.has_enough_ingredients(coffee):
+            print("Not enough ingredients to make the coffee.")
+            return
+
+        self.update_ingredients(coffee)
+        change = round(payment.amount - coffee.price, 2)
+        print(f"Dispensing {coffee.name}. Change returned: ${change}")
+
+    def check_inventory(self):
+        print("Ingredient Inventory:")
+        for name, ing in self.ingredients.items():
+            print(f"{name}: {ing.quantity}")
+
+        for ing in self.ingredients.values():
+            if ing.quantity < 100:
+                print(f"Warning: {ing.name} running low!")
 
 
-class DEMO:
-    @staticmethod
-    def run():
-        CM = Machine()
-        CM.show_menu()
-        CM.latte()
-        CM.espresso()
-        CM.show_menu
+class CoffeeVendingMachine:
+    def __init__(self):
+        self.machine = CoffeeMachine()
+
+    def run(self):
+        self.machine.display_menu()
+
+        def user_request(coffee_name: str, payment_amt: float):
+            payment = Payment(payment_amt)
+            self.machine.make_coffee(coffee_name, payment)
+
+        with ThreadPoolExecutor(max_workers=3) as executor:
+            executor.submit(user_request, "espresso", 3.0)
+            executor.submit(user_request, "latte", 4.0)
+            executor.submit(user_request, "cappuccino", 3.0)
+
+        self.machine.check_inventory()
 
 
 if __name__ == "__main__":
-    DEMO.run()
+    app = CoffeeVendingMachine()
+    app.run()

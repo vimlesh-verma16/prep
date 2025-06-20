@@ -44,7 +44,7 @@ class FileAppender(LogAppender):
             f.write(message.format() + "\n")
 
 
-class LoggerConfig:
+class LoggerConfig:  # Strategy Pattern
     def __init__(self, level: LogLevel, appender: LogAppender):
         self.level = level
         self.appender = appender
